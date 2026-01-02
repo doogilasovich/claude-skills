@@ -1,0 +1,160 @@
+name: Feature Auto-Ship
+
+# Automatically marks features as shipped when their PRs are merged
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  auto-ship:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract Feature ID
+        id: extract
+        run: |
+          # Get branch name from PR
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          echo "Branch: $BRANCH"
+
+          # Extract feature ID from branch name (feat/feat-XXX-slug)
+          if [[ $BRANCH =~ feat/(feat-[0-9]+) ]]; then
+            FEATURE_ID="${BASH_REMATCH[1]}"
+            echo "feature_id=$FEATURE_ID" >> $GITHUB_OUTPUT
+            echo "Found feature: $FEATURE_ID"
+          else
+            echo "No feature ID found in branch name"
+            echo "feature_id=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Feature Status
+        if: steps.extract.outputs.feature_id != ''
+        run: |
+          FEATURE_ID="${{ steps.extract.outputs.feature_id }}"
+          FEATURES_FILE=".claude/features.json"
+
+          if [ ! -f "$FEATURES_FILE" ]; then
+            echo "No features.json found"
+            exit 0
+          fi
+
+          # Check if feature exists
+          FEATURE_EXISTS=$(jq --arg id "$FEATURE_ID" '.features[] | select(.id == $id)' "$FEATURES_FILE")
+          if [ -z "$FEATURE_EXISTS" ]; then
+            echo "Feature $FEATURE_ID not found"
+            exit 0
+          fi
+
+          # Update feature status to shipped
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          jq --arg id "$FEATURE_ID" \
+             --arg ts "$TIMESTAMP" \
+             --arg pr "${{ github.event.pull_request.html_url }}" \
+             '
+             .features |= map(
+               if .id == $id then
+                 .status = "shipped" |
+                 .pullRequest = $pr |
+                 .statusHistory += [{
+                   "from": .status,
+                   "to": "shipped",
+                   "at": $ts
+                 }] |
+                 .dirty = false
+               else .
+               end
+             ) |
+             .lastUpdated = $ts
+             ' "$FEATURES_FILE" > tmp.json && mv tmp.json "$FEATURES_FILE"
+
+          echo "Updated $FEATURE_ID to shipped"
+
+      - name: Update Project Stats
+        if: steps.extract.outputs.feature_id != ''
+        run: |
+          PROJECT_FILE=".claude/project.json"
+          FEATURES_FILE=".claude/features.json"
+
+          if [ ! -f "$PROJECT_FILE" ] || [ ! -f "$FEATURES_FILE" ]; then
+            exit 0
+          fi
+
+          # Calculate new stats
+          TOTAL=$(jq '.features | length' "$FEATURES_FILE")
+          IDEAS=$(jq '[.features[] | select(.status == "idea")] | length' "$FEATURES_FILE")
+          IN_PROGRESS=$(jq '[.features[] | select(.status == "in-progress")] | length' "$FEATURES_FILE")
+          SHIPPED=$(jq '[.features[] | select(.status == "shipped")] | length' "$FEATURES_FILE")
+          ARCHIVED=$(jq '[.features[] | select(.status == "archived")] | length' "$FEATURES_FILE")
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Update project.json
+          jq --argjson total "$TOTAL" \
+             --argjson ideas "$IDEAS" \
+             --argjson inprog "$IN_PROGRESS" \
+             --argjson shipped "$SHIPPED" \
+             --argjson archived "$ARCHIVED" \
+             --arg ts "$TIMESTAMP" \
+             '
+             .features.stats.total = $total |
+             .features.stats.byStatus = {
+               "idea": $ideas,
+               "in-progress": $inprog,
+               "shipped": $shipped,
+               "archived": $archived
+             } |
+             .features.lastUpdated = $ts |
+             .updatedAt = $ts
+             ' "$PROJECT_FILE" > tmp.json && mv tmp.json "$PROJECT_FILE"
+
+          echo "Updated project stats"
+
+      - name: Close Linked Issue
+        if: steps.extract.outputs.feature_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FEATURE_ID="${{ steps.extract.outputs.feature_id }}"
+          FEATURES_FILE=".claude/features.json"
+
+          # Get GitHub issue number from feature
+          ISSUE_NUM=$(jq -r --arg id "$FEATURE_ID" '.features[] | select(.id == $id) | .githubIssueNumber // empty' "$FEATURES_FILE")
+
+          if [ -n "$ISSUE_NUM" ] && [ "$ISSUE_NUM" != "null" ]; then
+            echo "Closing issue #$ISSUE_NUM"
+            gh issue close "$ISSUE_NUM" --comment "Shipped in ${{ github.event.pull_request.html_url }}"
+          fi
+
+      - name: Commit Changes
+        if: steps.extract.outputs.feature_id != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .claude/
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: auto-ship ${{ steps.extract.outputs.feature_id }}
+
+Automatically marked as shipped after PR #${{ github.event.pull_request.number }} merged.
+
+Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+
+            git push
+          fi
