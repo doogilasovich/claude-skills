@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+._*
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Private data (should never be in this repo)
+app-ideas/
+settings.json
+history.jsonl
+*.backup.*
+
+# Session data
+debug/
+todos/
+file-history/
+shell-snapshots/
+statsig/
+telemetry/
