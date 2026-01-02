@@ -31,10 +31,12 @@ Per `_reference.md#project-resolution-order`, plus:
 
 1. **If no name**: Show current active project
 2. **Find project**: Exact match, then partial match
-3. **Update context**: Write to ~/.claude/projects/active.json
-4. **Update index**: Set lastAccessed
-5. **Change working directory**: `cd` to project path
-6. **Confirm**: Show project summary with new working directory
+3. **Check initialization**: Verify `.claude/project.json` exists
+4. **Update context**: Write to ~/.claude/projects/active.json
+5. **Update index**: Set lastAccessed
+6. **Change working directory**: `cd` to project path
+7. **Confirm**: Show project summary with new working directory
+8. **If not initialized**: Show setup suggestion
 
 ## Active Project File
 
@@ -79,6 +81,21 @@ When commands need a project:
    Commands now target this project.
 ```
 
+### Switch to Uninitialized Project
+
+```
+✅ Switched to: my-new-project
+
+   ⚠️  No Claude session found (.claude/project.json missing)
+
+   📂 Changed directory to: ~/code/my-new-project
+
+   To initialize project management:
+   ~/code/claude-skills/templates/project-init.sh .
+
+   Or manually create .claude/project.json
+```
+
 ## Working Directory
 
 The switch command changes the current working directory to the project path:
@@ -93,6 +110,40 @@ This ensures:
 - Relative paths work correctly for the new project
 - Git commands operate on the correct repo
 - Build/test commands run in the right context
+
+## Session Detection
+
+A project is considered "initialized" if it has `.claude/project.json`. This file:
+- Stores project metadata (name, displayName, status)
+- Tracks feature statistics
+- Records audit history
+- Links to origin (app-idea reference)
+
+Without this file, project management commands (`/feature-idea`, `/audit`, `/project view`) won't work properly.
+
+### Initialization Check
+
+On switch, the skill checks:
+```bash
+if [ ! -f "$PROJECT_PATH/.claude/project.json" ]; then
+  # Show initialization suggestion
+fi
+```
+
+### Quick Initialize
+
+```bash
+# From project directory
+~/code/claude-skills/templates/project-init.sh .
+
+# Creates:
+# .claude/project.json
+# .claude/features.json
+# .claude/audit/cache/
+# .claude/audit/reports/
+# .github/workflows/feature-auto-ship.yml
+# .github/workflows/scheduled-audit.yml
+```
 
 ## Errors
 
