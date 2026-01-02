@@ -7,6 +7,14 @@ description: Set the active project context for subsequent commands.
 
 Sets the active project context. Subsequent commands use this project when not in a project directory.
 
+> **Note:** You usually don't need to call this directly. The `SessionStart` hook
+> automatically switches to match your working directory when you start Claude.
+>
+> **Use this command only when:**
+> - Viewing available projects (`/project switch`)
+> - Pre-setting a project before exiting to switch directories
+> - Overriding the auto-detected project (rare)
+
 ## Usage
 
 ```bash
@@ -99,14 +107,22 @@ When commands need a project:
 
 ## Working Directory
 
-**Limitation:** Claude Code's shell resets cwd after each command. The switch command updates the active project context, but you must start a new session to work in the new directory.
+**Limitation:** Claude Code's shell resets cwd after each command.
 
-**Recommended workflow:**
+**Recommended workflow (uses auto-switch):**
+```bash
+# In your terminal (not Claude):
+cd ~/code/git-personal/CameraTest
+claude
+# SessionStart hook auto-switches to CameraTest
+```
+
+**Alternative (manual switch):**
 ```bash
 /project switch CameraTest     # 1. Set active project
 # exit                         # 2. Exit Claude
 # cd ~/code/.../CameraTest     # 3. Change directory in terminal
-# claude                       # 4. Start new session
+# claude                       # 4. Start new session (auto-confirms)
 ```
 
 This ensures:
@@ -114,6 +130,17 @@ This ensures:
 - Git commands operate on the correct repo
 - Build/test commands run in the right context
 - No project-mismatch warnings
+
+## Auto-Switch Hook
+
+The `SessionStart` hook (`session-auto-switch.sh`) runs when Claude starts:
+
+1. Checks if cwd contains `.claude/project.json`
+2. Compares with current active project
+3. If different, updates active project to match cwd
+4. Shows notification of the switch
+
+This means you rarely need `/project switch` - just `cd` and `claude`.
 
 ## Session Detection
 
