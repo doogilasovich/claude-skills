@@ -90,6 +90,7 @@ Multi-project dashboard and switching.
 |------|---------|--------|
 | `session-start.md` | Session starts | Shows project health, dirty features, stale audits |
 | `pre-pr.md` | Before PR creation | Blocks if critical audit issues found |
+| `project-mismatch-check.sh` | Every command | Warns if cwd doesn't match active project |
 
 ## GitHub Actions
 
