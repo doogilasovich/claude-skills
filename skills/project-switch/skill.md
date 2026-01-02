@@ -77,8 +77,10 @@ When commands need a project:
    Features: 35 (3 in-progress)
    Audit: 8.5/10
 
-   📂 Changed directory to: ~/code/git-personal/CameraTest
-   Commands now target this project.
+   To work in this project, start a new session:
+
+   exit
+   cd ~/code/git-personal/CameraTest && claude
 ```
 
 ### Switch to Uninitialized Project
@@ -88,28 +90,30 @@ When commands need a project:
 
    ⚠️  No Claude session found (.claude/project.json missing)
 
-   📂 Changed directory to: ~/code/my-new-project
+   To initialize and work in this project:
 
-   To initialize project management:
+   exit
+   cd ~/code/my-new-project && claude
    ~/code/claude-skills/templates/project-init.sh .
-
-   Or manually create .claude/project.json
 ```
 
 ## Working Directory
 
-The switch command changes the current working directory to the project path:
+**Limitation:** Claude Code's shell resets cwd after each command. The switch command updates the active project context, but you must start a new session to work in the new directory.
 
+**Recommended workflow:**
 ```bash
-# Before: ~/code/other-project
-/project switch CameraTest
-# After: ~/code/git-personal/CameraTest (cwd changed)
+/project switch CameraTest     # 1. Set active project
+# exit                         # 2. Exit Claude
+# cd ~/code/.../CameraTest     # 3. Change directory in terminal
+# claude                       # 4. Start new session
 ```
 
 This ensures:
 - Relative paths work correctly for the new project
 - Git commands operate on the correct repo
 - Build/test commands run in the right context
+- No project-mismatch warnings
 
 ## Session Detection
 
